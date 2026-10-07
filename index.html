@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Random Forest Visualizer</title>
+<meta name="description" content="Interaktive Lern-App für Random Forests, Bagging und Mehrheitsentscheidung.">
+<style>
+:root{
+  --bg:#f6f8ff;--card:#ffffff;--soft:#f8faff;--text:#172033;--muted:#6c778a;--line:#dce4f2;
+  --accent:#5d5df7;--accent2:#00b8c8;--accent3:#ff9a4d;--good:#15865a;--bad:#c63e45;
+  --shadow:0 16px 42px rgba(38,55,105,.11);--grid:#e8edf7;--axis:#8c98aa;
+}
+[data-theme="dark"]{
+  --bg:#0c1118;--card:#151b24;--soft:#101720;--text:#edf2ff;--muted:#9ba8ba;--line:#2a3544;
+  --accent:#9494ff;--accent2:#43d4df;--accent3:#ffb177;--good:#79e2ad;--bad:#ff9ca3;
+  --shadow:0 18px 48px rgba(0,0,0,.34);--grid:#26313e;--axis:#7b8798;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  color:var(--text);
+  background:
+    radial-gradient(circle at 10% 0%,rgba(93,93,247,.11),transparent 27%),
+    radial-gradient(circle at 92% 8%,rgba(0,184,200,.10),transparent 24%),
+    var(--bg);
+  transition:.25s
+}
+.topbar{
+  display:flex;justify-content:space-between;gap:24px;align-items:flex-start;
+  padding:34px clamp(20px,5vw,64px) 22px;
+  background:linear-gradient(120deg,color-mix(in srgb,var(--accent) 12%,var(--card)),color-mix(in srgb,var(--accent2) 10%,var(--card)) 55%,color-mix(in srgb,var(--accent3) 12%,var(--card)));
+  border-bottom:1px solid var(--line)
+}
+.eyebrow{font-size:.8rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+h1{font-size:clamp(2.2rem,4vw,3.4rem);margin:.25rem 0 .4rem;line-height:1.04}
+.topbar p{margin:0;color:var(--muted);font-size:1.04rem}
+.header-actions{display:flex;gap:10px;flex-wrap:wrap}
+button{
+  border:0;border-radius:13px;padding:11px 15px;font-weight:900;cursor:pointer;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));color:white;
+  transition:.15s
+}
+button:hover{transform:translateY(-1px);filter:brightness(1.04);box-shadow:0 8px 20px rgba(93,93,247,.18)}
+.theme-toggle{background:var(--card);color:var(--text);border:1px solid var(--line);box-shadow:var(--shadow)}
+.layout{max-width:1500px;margin:auto;padding:26px clamp(20px,5vw,64px) 42px;display:grid;grid-template-columns:310px 1fr;gap:24px}
+.panel,.content{background:var(--card);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow)}
+.controls{padding:22px;position:sticky;top:16px;height:max-content}
+.controls h2{margin:0 0 8px}
+.helper{font-size:.9rem;color:var(--muted);line-height:1.45;margin:0 0 6px}
+.controls label,.predict-card label{display:flex;justify-content:space-between;gap:12px;margin-top:18px;font-weight:800}
+.controls input,.predict-card input{width:100%;accent-color:var(--accent)}
+.content{padding:20px;min-width:0}
+.tabs{display:flex;gap:9px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:14px}
+.tab{background:var(--soft);color:var(--text);border:1px solid var(--line)}
+.tab.active{background:linear-gradient(135deg,var(--accent),var(--accent2));color:white;border-color:transparent}
+.tab-panel{display:none;padding:24px 2px 4px;animation:fade .2s ease}
+.tab-panel.active{display:block}
+@keyframes fade{from{opacity:.45;transform:translateY(3px)}to{opacity:1;transform:none}}
+.hero-card{
+  border:1px solid var(--line);border-radius:20px;padding:24px;
+  background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 10%,var(--card)),var(--card) 60%,color-mix(in srgb,var(--accent2) 8%,var(--card)))
+}
+.badge{display:inline-block;background:linear-gradient(135deg,var(--accent),var(--accent2));color:white;padding:7px 10px;border-radius:999px;font-size:.76rem;font-weight:900;letter-spacing:.08em}
+.three-col{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:18px 0}
+.info-card,.chart-card,.metric,.predict-card,.forest-card,.tree-vote{border:1px solid var(--line);border-radius:18px;background:var(--card)}
+.info-card{padding:18px}
+.info-card:nth-child(1){box-shadow:inset 0 4px 0 var(--accent)}
+.info-card:nth-child(2){box-shadow:inset 0 4px 0 var(--accent2)}
+.info-card:nth-child(3){box-shadow:inset 0 4px 0 var(--accent3)}
+.callout{display:inline-flex;gap:8px;align-items:center;padding:8px 11px;border:1px solid var(--line);border-radius:999px;background:var(--soft);color:var(--muted);font-size:.9rem;font-weight:800}
+.chart-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(260px,1fr);gap:18px}
+.chart-card{padding:12px;overflow:hidden;background:linear-gradient(180deg,var(--card),var(--soft))}
+.chart-card svg{width:100%;height:auto;display:block}
+.metrics{display:grid;gap:10px}
+.metric{padding:14px;position:relative;overflow:hidden}
+.metric::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(var(--accent),var(--accent2))}
+.metric span{display:block;color:var(--muted);font-size:.85rem}
+.metric strong{font-size:1.5rem}
+.forest-card{padding:16px;margin-top:18px;background:linear-gradient(180deg,var(--card),var(--soft))}
+.vote-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:12px}
+.tree-vote{padding:14px}
+.tree-vote span{display:block;color:var(--muted);font-size:.8rem}
+.tree-vote strong{font-size:1.25rem}
+.predict-card{padding:20px;background:linear-gradient(135deg,var(--card),color-mix(in srgb,var(--accent2) 7%,var(--card)))}
+.result{margin-top:16px;padding:16px;border:1px solid var(--line);border-radius:16px;background:var(--soft)}
+.vote-bar{height:18px;border-radius:999px;background:var(--line);overflow:hidden;margin:10px 0}
+.vote-fill{height:100%;width:50%;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .2s}
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin:12px 0;color:var(--muted);font-weight:800;font-size:.9rem}
+.dot{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:6px}
+.dot.a{background:#ff9a4d}.dot.b{background:#00b8c8}
+details{margin-top:18px;border:1px solid var(--line);border-radius:14px;background:var(--soft);padding:14px}
+summary{cursor:pointer;font-weight:900}
+.axis{stroke:var(--axis);stroke-width:1.2}.grid{stroke:var(--grid);stroke-width:1}
+.pointA{fill:#ff9a4d;stroke:var(--card);stroke-width:2}.pointB{fill:#00b8c8;stroke:var(--card);stroke-width:2}
+.boundaryA{fill:color-mix(in srgb,#ff9a4d 15%,transparent)}.boundaryB{fill:color-mix(in srgb,#00b8c8 15%,transparent)}
+.tick,.axis-label{fill:var(--muted);font-size:13px}.axis-label{font-weight:800}
+footer{text-align:center;color:var(--muted);padding:0 20px 32px}
+@media(max-width:900px){
+  .layout{grid-template-columns:1fr}.controls{position:static}.three-col{grid-template-columns:1fr}.chart-grid{grid-template-columns:1fr}.topbar{flex-direction:column}
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div>
+    <div class="eyebrow">ML Learning Lab · Projekt 4</div>
+    <h1>🌲 Random Forest Visualizer</h1>
+    <p>Verstehen → viele Bäume trainieren → Stimmen vergleichen → Ensemble-Entscheidung sehen</p>
+  </div>
+  <div class="header-actions">
+    <button id="themeToggle" class="theme-toggle" type="button">🌙 Dunkelmodus</button>
+  </div>
+</header>
+
+<main class="layout">
+  <aside class="panel controls">
+    <h2>🎛️ Forest-Labor</h2>
+    <p class="helper">Verändere Anzahl der Bäume, Baumtiefe und Rauschen. Beobachte, wie die Mehrheitsentscheidung stabiler wird.</p>
+
+    <label>Datenpunkte <span id="nVal">42</span></label>
+    <input id="n" type="range" min="20" max="90" value="42" step="2">
+
+    <label>Anzahl Bäume <span id="treesVal">7</span></label>
+    <input id="trees" type="range" min="3" max="25" value="7" step="2">
+
+    <label>Max. Baumtiefe <span id="depthVal">3</span></label>
+    <input id="depth" type="range" min="1" max="5" value="3" step="1">
+
+    <label>Rauschen <span id="noiseVal">0.8</span></label>
+    <input id="noise" type="range" min="0" max="2.2" value="0.8" step="0.1">
+
+    <label>Zufalls-Seed <span id="seedVal">42</span></label>
+    <input id="seed" type="range" min="0" max="100" value="42" step="1">
+  </aside>
+
+  <section class="content">
+    <nav class="tabs">
+      <button class="tab active" data-tab="understand">1️⃣ Verstehen</button>
+      <button class="tab" data-tab="explore">2️⃣ Ausprobieren</button>
+      <button class="tab" data-tab="predict">3️⃣ Vorhersagen</button>
+    </nav>
+
+    <section id="understand" class="tab-panel active">
+      <div class="hero-card">
+        <span class="badge">SCHRITT 1</span>
+        <h2>Was macht ein Random Forest?</h2>
+        <p>Ein Random Forest besteht aus <strong>vielen Entscheidungsbäumen</strong>. Jeder Baum lernt auf einer leicht anderen Stichprobe der Trainingsdaten. Am Ende stimmen alle Bäume ab – bei Klassifikation gewinnt die <strong>Mehrheit</strong>.</p>
+      </div>
+
+      <div class="three-col">
+        <article class="info-card"><h3>Bootstrap-Sample</h3><p>Jeder Baum bekommt zufällig gezogene Trainingsbeispiele, mit Zurücklegen.</p></article>
+        <article class="info-card"><h3>Viele Bäume</h3><p>Jeder einzelne Baum darf etwas anders lernen und andere Fehler machen.</p></article>
+        <article class="info-card"><h3>Voting</h3><p>Die Mehrheitsentscheidung macht das Ensemble oft robuster als einen einzelnen Baum.</p></article>
+      </div>
+
+      <p>Die Stärke kommt aus der Kombination: Einzelne Bäume können schwanken, aber viele unterschiedliche Bäume gleichen sich teilweise gegenseitig aus.</p>
+    </section>
+
+    <section id="explore" class="tab-panel">
+      <h2>📊 Entscheidungsfläche des gesamten Waldes</h2>
+      <p>Der Hintergrund zeigt die Mehrheitsentscheidung aller Bäume.</p>
+      <span class="callout">💡 Tipp: Vergleiche zuerst 3 Bäume mit 21 Bäumen.</span>
+
+      <div class="chart-grid" style="margin-top:16px">
+        <div class="chart-card">
+          <svg id="chart" viewBox="0 0 820 520" aria-label="Random-Forest-Entscheidungsfläche"></svg>
+          <div class="legend"><span><i class="dot a"></i>Klasse 0</span><span><i class="dot b"></i>Klasse 1</span></div>
+        </div>
+        <div class="metrics">
+          <div class="metric"><span>Trainings-Accuracy</span><strong id="accuracy">–</strong></div>
+          <div class="metric"><span>Anzahl Bäume</span><strong id="treeCount">–</strong></div>
+          <div class="metric"><span>Durchschn. Blätter/Baum</span><strong id="avgLeaves">–</strong></div>
+          <div class="metric"><span>Mittlere Baumtiefe</span><strong id="avgDepth">–</strong></div>
+        </div>
+      </div>
+
+      <div class="forest-card">
+        <h3>🗳️ Stimmen einzelner Bäume</h3>
+        <p style="color:var(--muted)">Für den Beispielpunkt x₁ = 0,5 und x₂ = 0,5 siehst du hier die ersten Baumstimmen.</p>
+        <div id="voteGrid" class="vote-grid"></div>
+      </div>
+
+      <details>
+        <summary>Warum sind Random Forests oft stabiler?</summary>
+        <p>Weil nicht nur ein einzelner Baum entscheidet. Verschiedene Bootstrap-Stichproben erzeugen leicht unterschiedliche Bäume. Durch die Mehrheitsentscheidung sinkt die Abhängigkeit von zufälligen Besonderheiten eines einzelnen Trainingssatzes.</p>
+      </details>
+    </section>
+
+    <section id="predict" class="tab-panel">
+      <h2>🎯 Neuen Punkt vom Wald klassifizieren lassen</h2>
+      <div class="predict-card">
+        <label>x₁ <span id="pxVal">0.0</span></label>
+        <input id="px" type="range" min="-4" max="4" value="0" step="0.1">
+
+        <label>x₂ <span id="pyVal">0.0</span></label>
+        <input id="py" type="range" min="-4" max="4" value="0" step="0.1">
+
+        <div class="result">
+          <div>Stimmen für Klasse 1: <strong id="votePct">–</strong></div>
+          <div class="vote-bar"><div id="voteFill" class="vote-fill"></div></div>
+          <div>Random-Forest-Vorhersage: <strong id="predClass">–</strong></div>
+          <div id="voteText" style="color:var(--muted);margin-top:6px">–</div>
+        </div>
+      </div>
+
+      <div class="chart-card" style="margin-top:16px">
+        <svg id="predChart" viewBox="0 0 820 500" aria-label="Vorhersagepunkt im Random Forest"></svg>
+      </div>
+    </section>
+  </section>
+</main>
+
+<footer>ML Learning Lab · Projekt 4 · Random Forest · Läuft komplett im Browser</footer>
+
+<script>
+const $=id=>document.getElementById(id);
+const state={data:[],forest:[]};
+
+function applyTheme(theme){
+  document.documentElement.setAttribute("data-theme",theme);
+  $("themeToggle").textContent=theme==="dark"?"☀️ Hellmodus":"🌙 Dunkelmodus";
+}
+const saved=localStorage.getItem("ml-theme");
+applyTheme(saved||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"));
+$("themeToggle").addEventListener("click",()=>{
+  const next=document.documentElement.getAttribute("data-theme")==="dark"?"light":"dark";
+  localStorage.setItem("ml-theme",next);applyTheme(next);drawAll();
+});
+
+function mulberry32(seed){return function(){let t=seed+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296}}
+function gaussian(r){let u=0,v=0;while(!u)u=r();while(!v)v=r();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)}
+
+function generate(){
+  const n=+$("n").value,noise=+$("noise").value,seed=+$("seed").value,r=mulberry32(seed+1);
+  state.data=[];
+  for(let i=0;i<n;i++){
+    const cls=i<n/2?0:1;
+    const baseX=cls?1.25:-1.25;
+    const baseY=cls?1.0:-1.0;
+    const x=baseX+gaussian(r)*(0.8+noise*.45);
+    const y=baseY+gaussian(r)*(0.9+noise*.38);
+    state.data.push({x,y,c:cls});
+  }
+  trainForest();
+  update();
+}
+
+function gini(items){
+  if(!items.length)return 0;
+  const ones=items.filter(d=>d.c===1).length,p=ones/items.length;
+  return 1-(p*p+(1-p)*(1-p))
+}
+function majority(items){
+  const ones=items.filter(d=>d.c===1).length;
+  return ones>=items.length/2?1:0
+}
+function bestSplit(items,features){
+  let best=null;
+  for(const feature of features){
+    const vals=[...items].map(d=>d[feature]).sort((a,b)=>a-b);
+    for(let i=1;i<vals.length;i++){
+      const t=(vals[i-1]+vals[i])/2;
+      const left=items.filter(d=>d[feature]<t),right=items.filter(d=>d[feature]>=t);
+      if(!left.length||!right.length)continue;
+      const score=(left.length*gini(left)+right.length*gini(right))/items.length;
+      if(!best||score<best.score)best={feature,t,left,right,score}
+    }
+  }
+  return best
+}
+function build(items,depth,maxDepth,rng){
+  const pred=majority(items);
+  if(depth>=maxDepth||gini(items)<.0001||items.length<4)return{leaf:true,pred,items,depth};
+  const feature=rng()<0.5?"x":"y";
+  const s=bestSplit(items,[feature]);
+  if(!s)return{leaf:true,pred,items,depth};
+  return{
+    leaf:false,pred,items,depth,feature:s.feature,t:s.t,
+    left:build(s.left,depth+1,maxDepth,rng),
+    right:build(s.right,depth+1,maxDepth,rng)
+  }
+}
+function bootstrap(data,rng){
+  return Array.from({length:data.length},()=>data[Math.floor(rng()*data.length)])
+}
+function trainForest(){
+  const count=+$("trees").value,maxDepth=+$("depth").value,seed=+$("seed").value;
+  state.forest=[];
+  for(let i=0;i<count;i++){
+    const rng=mulberry32(seed*1000+i*97+17);
+    const sample=bootstrap(state.data,rng);
+    state.forest.push(build(sample,0,maxDepth,rng));
+  }
+}
+
+function predictTree(x,y,node){
+  if(node.leaf)return node.pred;
+  const v=node.feature==="x"?x:y;
+  return predictTree(x,y,v<node.t?node.left:node.right)
+}
+function predictForest(x,y){
+  const votes=state.forest.map(t=>predictTree(x,y,t));
+  const ones=votes.reduce((a,b)=>a+b,0);
+  return{pred:ones>=votes.length/2?1:0,ones,total:votes.length,votes}
+}
+function getLeaves(node){
+  if(node.leaf)return 1;
+  return getLeaves(node.left)+getLeaves(node.right)
+}
+function getDepth(node){
+  if(node.leaf)return node.depth;
+  return Math.max(getDepth(node.left),getDepth(node.right))
+}
+
+function update(){
+  $("nVal").textContent=$("n").value;
+  $("treesVal").textContent=$("trees").value;
+  $("depthVal").textContent=$("depth").value;
+  $("noiseVal").textContent=(+$("noise").value).toFixed(1);
+  $("seedVal").textContent=$("seed").value;
+
+  let ok=0;
+  for(const d of state.data) if(predictForest(d.x,d.y).pred===d.c)ok++;
+  $("accuracy").textContent=(ok/state.data.length*100).toFixed(1)+"%";
+  $("treeCount").textContent=state.forest.length;
+  $("avgLeaves").textContent=(state.forest.reduce((s,t)=>s+getLeaves(t),0)/state.forest.length).toFixed(1);
+  $("avgDepth").textContent=(state.forest.reduce((s,t)=>s+getDepth(t),0)/state.forest.length).toFixed(1);
+
+  updateVotesPreview();
+  updatePrediction();
+  drawAll();
+}
+function updateVotesPreview(){
+  const r=predictForest(.5,.5),grid=$("voteGrid");grid.innerHTML="";
+  r.votes.slice(0,10).forEach((v,i)=>{
+    const div=document.createElement("div");div.className="tree-vote";
+    div.innerHTML="<span>Baum "+(i+1)+"</span><strong>Klasse "+v+"</strong>";
+    grid.appendChild(div)
+  });
+  if(r.votes.length>10){
+    const div=document.createElement("div");div.className="tree-vote";
+    div.innerHTML="<span>Weitere Bäume</span><strong>+"+(r.votes.length-10)+"</strong>";
+    grid.appendChild(div)
+  }
+}
+
+function svgEl(name,attrs={}){const e=document.createElementNS("http://www.w3.org/2000/svg",name);for(const[k,v]of Object.entries(attrs))e.setAttribute(k,v);return e}
+function drawDecision(svg,withPrediction=false){
+  svg.innerHTML="";
+  const W=820,H=withPrediction?500:520,M={l:64,r:24,t:24,b:54};
+  const xmin=-4,xmax=4,ymin=-4,ymax=4;
+  const sx=x=>M.l+(x-xmin)/(xmax-xmin)*(W-M.l-M.r);
+  const sy=y=>H-M.b-(y-ymin)/(ymax-ymin)*(H-M.t-M.b);
+
+  const cols=50,rows=50;
+  for(let i=0;i<cols;i++){
+    for(let j=0;j<rows;j++){
+      const xa=xmin+(xmax-xmin)*i/cols,xb=xmin+(xmax-xmin)*(i+1)/cols;
+      const ya=ymin+(ymax-ymin)*j/rows,yb=ymin+(ymax-ymin)*(j+1)/rows;
+      const p=predictForest((xa+xb)/2,(ya+yb)/2).pred;
+      svg.appendChild(svgEl("rect",{x:sx(xa),y:sy(yb),width:sx(xb)-sx(xa)+1,height:sy(ya)-sy(yb)+1,class:p?"boundaryB":"boundaryA"}))
+    }
+  }
+
+  for(let i=-4;i<=4;i++){
+    const xx=sx(i),yy=sy(i);
+    svg.appendChild(svgEl("line",{x1:xx,x2:xx,y1:M.t,y2:H-M.b,class:"grid"}));
+    svg.appendChild(svgEl("line",{x1:M.l,x2:W-M.r,y1:yy,y2:yy,class:"grid"}));
+    const tx=svgEl("text",{x:xx,y:H-M.b+24,"text-anchor":"middle",class:"tick"});tx.textContent=i;svg.appendChild(tx);
+    const ty=svgEl("text",{x:M.l-10,y:yy+4,"text-anchor":"end",class:"tick"});ty.textContent=i;svg.appendChild(ty)
+  }
+  svg.appendChild(svgEl("line",{x1:M.l,x2:W-M.r,y1:H-M.b,y2:H-M.b,class:"axis"}));
+  svg.appendChild(svgEl("line",{x1:M.l,x2:M.l,y1:M.t,y2:H-M.b,class:"axis"}));
+
+  for(const d of state.data){
+    svg.appendChild(svgEl("circle",{cx:sx(d.x),cy:sy(d.y),r:7,class:d.c?"pointB":"pointA"}))
+  }
+
+  if(withPrediction){
+    const x=+$("px").value,y=+$("py").value,p=predictForest(x,y).pred;
+    svg.appendChild(svgEl("circle",{cx:sx(x),cy:sy(y),r:12,fill:"white",stroke:p?"#00b8c8":"#ff9a4d","stroke-width":"5"}))
+  }
+
+  const tx=svgEl("text",{x:(M.l+W-M.r)/2,y:H-10,"text-anchor":"middle",class:"axis-label"});tx.textContent="x₁";svg.appendChild(tx);
+  const ty=svgEl("text",{x:18,y:(M.t+H-M.b)/2,transform:"rotate(-90 18 "+((M.t+H-M.b)/2)+")","text-anchor":"middle",class:"axis-label"});ty.textContent="x₂";svg.appendChild(ty)
+}
+function drawAll(){drawDecision($("chart"));drawDecision($("predChart"),true)}
+
+function updatePrediction(){
+  const x=+$("px").value,y=+$("py").value,r=predictForest(x,y),pct=r.ones/r.total*100;
+  $("pxVal").textContent=x.toFixed(1);$("pyVal").textContent=y.toFixed(1);
+  $("votePct").textContent=pct.toFixed(1)+"%";
+  $("voteFill").style.width=pct.toFixed(1)+"%";
+  $("predClass").textContent="Klasse "+r.pred;
+  $("voteText").textContent=r.ones+" von "+r.total+" Bäumen stimmen für Klasse 1."
+}
+
+["n","trees","depth","noise","seed"].forEach(id=>$(id).addEventListener("input",generate));
+["px","py"].forEach(id=>$(id).addEventListener("input",()=>{updatePrediction();drawAll()}));
+document.querySelectorAll(".tab").forEach(btn=>btn.addEventListener("click",()=>{
+  document.querySelectorAll(".tab").forEach(b=>b.classList.remove("active"));
+  document.querySelectorAll(".tab-panel").forEach(p=>p.classList.remove("active"));
+  btn.classList.add("active");$(btn.dataset.tab).classList.add("active")
+}));
+
+generate();
+</script>
+</body>
+</html>
